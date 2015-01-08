@@ -73,7 +73,7 @@ class crawler{
     public function initOption() {
         $this->options = array(
             CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_TIMEOUT => 60
+            CURLOPT_TIMEOUT => 120
         );
     }
 
