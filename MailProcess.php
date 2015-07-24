@@ -1,9 +1,18 @@
 <?php
-/**
- * Created by PhpStorm.
- * User: Xuli
- * Date: 2015/7/23
- * Time: 16:25
+/************************************************************************************
+ *                       Mail Receive Class
+ * **********************************************************************************
+ *      Author:  Ross Xu
+ *      Email:   xul@caicv.com
+ *      File:    MailProcess.php
+ *      Version: 1.0.0
+ *      @ChangeHistory:
+ *      1. 2015-07-24, 支持多类型附件存储，精简文件流传输与存储代码
+ * *********************************************************************************
+ *DESCRIPTION:
+ *
+ *      使用IMAP/POP3协议进行邮件接收相关操作，并支持附件存取与头部文件判断等操作。
+ *
  */
 
 class MailProcess {
@@ -157,45 +166,31 @@ class MailProcess {
      * * @param $msgid
      * @param string $path
      */
-    function getAttach( $msgid, $path = ''){
+    function getAttach( $msgid, $dirPath = ''){
         $this->checkConnect();
-
         $structure = imap_fetchstructure($this->mbox, $msgid);
-        if($structure->parts) {
-            foreach($structure->parts as $key => $value) {
-                $enc = $structure->parts[$key]->encoding;
-                if($structure->parts[$key]->subtype == 'OCTET-STREAM') {
-                    $originName = $structure->parts[$key]->parameters[1]->value;
-                    $nameArr = imap_mime_header_decode($originName);
-                    $message = imap_fetchbody($this->mbox, $msgid, $key + 1);
-                    switch ($enc) {
-                        case 0:
-                            $message = imap_8bit($message);
-                            break;
-                        case 1:
-                            $message = imap_8bit($message);
-                            break;
-                        case 2:
-                            $message = imap_binary($message);
-                            break;
-                        case 3:
-                            $message = imap_base64($message);
-                            break;
-                        case 4:
-                            $message = quoted_printable_encode($message);
-                            break;
-                        case 5:
-                            $message = $message;
-                            break;
+        if(isset($structure->parts)) {
+            foreach($structure->parts as $key => $part) {
+                if($part->ifdparameters == 1) {
+                    foreach($part->parameters as $param) {
+                        if($param->attribute == 'NAME') {
+                            $originName = $param->value;
+                            $nameArr = imap_mime_header_decode($originName);
+                            $nameEnc = $nameArr[0]->charset;
+                            if(strtoupper($nameEnc) !== 'GBK' && $nameEnc != 'default') {
+                                $filename = iconv($nameArr[0]->charset, 'GBK', $nameArr[0]->text);
+                            }else{
+                                $filename = $nameArr[0]->text;
+                            }
+                        }
                     }
-                    $filename = $nameArr[0]->text;
-
-                    $handle = fopen(iconv('UTF-8','GBK', $filename),'w');
+                    $handle = fopen($dirPath .'/'.$filename ,'w');
                     stream_filter_append($handle,'convert.base64-decode',STREAM_FILTER_WRITE);
-                    imap_savebody ($this->mbox, $handle, $msgid, 2);
+                    imap_savebody ($this->mbox, $handle, $msgid, $key + 1);
                     fclose($handle);
                 }
             }
         }
     }
+
 }
